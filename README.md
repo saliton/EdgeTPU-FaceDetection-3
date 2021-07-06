@@ -1,25 +1,25 @@
-#Edge TPUで顔認証してみる～実装編その３
+# Edge TPUで顔認証してみる～実装編その３
 
-##１．今回やること
+## １．今回やること
 
 [前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)では、PCにてFaceNet[[1]](https://github.com/nyoki-mtl/keras-facenet)を実装して、顔エンコーディング（Face Encoding）の結果、正しい埋め込みベクトルが出力されることを確認しました。今回は、まったく同じことをEdgeTPU上で実施しますが、PCで使ったFaceNetのKerasモデルをEdgeTPU用のTensorFlowLiteモデルに変換するところが中心となります。
 
 >参考文献：  
->[1] [FaceNet by Hiroki Taniai](https://github.com/nyoki-mtl/keras-facenet)
+>[1] [FaceNet by Hiroki Taniai](https://github.com/nyoki-mtl/keras-facenet)  
 
-##２．EdgeTPU用モデルの作成
+## ２．EdgeTPU用モデルの作成6
 
 一般的に、GPUを使ったテンソル計算では浮動小数点演算が用いられます。しかし、EdgeTPUはテンソル計算のための専用ハードウェアを搭載し、その計算には整数演算が用いられています。したがって、EdgeTPU用のモデルは「重み」「バイアス」などのパラメータも整数で表現されている必要があります。これによってモデルサイズが減少し、計算の高速化、効率化が期待できます。また、EdgeTPU用モデルでは、TPU内のハードウェアリソースの使用可否や割り当てなども意識したモデル作りが求められます。
 
-###（１）EdgeTPU用モデルの作成手順
+### （１）EdgeTPU用モデルの作成手順
 
 EdgeTPU用モデルの作り方はCoralサイトにある「Coral：Docs & Tools：Creating a model：Compatibility overview[[2]](https://coral.ai/docs/edgetpu/models-intro/#compatibility-overview)」に説明されていますが、いくつか説明を補足します。Coralサイトによれば、EdgeTPU用モデルの作り方には以下の２通りがあります。
 
-* ####A. 量子化対応トレーニング（QAT：Quantization-aware training）<br>
+* #### A. 量子化対応トレーニング（QAT：Quantization-aware training）<br>
 詳細はいまひとつよくわからないのですが、量子化による影響も考慮したトレーニング（学習）を通して、量子化したときの誤差が最小になるように学習する方法のようです。『ニューラルネットワークのグラフに「偽の」量子化ノードを使用して、トレーニング中の8ビット値の影響をシミュレートします。』とあるので、この手法では最初のトレーニングの前にネットワークを変更する必要があります。なんだかちょっと面倒な感じですが、後述の「トレーニング後の量子化」よりも高い精度のモデルが得られます。Coralサイトではこちらの手法を「推奨」していますが、精度にはそんなに違いはないとの報告もあります[[3]](https://qiita.com/habakan/items/8d4573dbc77003f78c43)。
 
 
-* ####B. トレーニング後の量子化（Post-training quantization）<br>
+* #### B. トレーニング後の量子化（Post-training quantization）<br>
 我々は既存のモデルを用いることにより楽をしたいので、必然的にこちらの手法を取ります。この手法では以前に学習したモデルをそのまま量子化モデルに変換することができます。ネットワークの修正なしで、「重み」や「バイアス」などのパラメータを量子化するイメージです。ただし、この変換プロセスでは代表的なデータセットを用意する必要があります。つまり、元の学習データセットと同じフォーマットで、同じようなスタイルのデータセットが必要です。この代表的なデータセットにより、量子化処理で活性化と入力のダイナミックレンジ（最大値・最小値）を測定することができます。これは、各重みと活性化値の正確な8ビット表現を見つけるために重要です。
 
 図１はEdgeTPUのモデルを作成するための基本的なワークフローです。我々は既にKerasモデル「facenet_keras.h5」を持っているので、「B. トレーニング後の量子化」コースを選択します。Kerasモデルを直接「①Convert」処理で量子化されたTensorFlowLiteモデルに変換し、さらに「②Compile」処理でEdgeTPUに特化されたTensorFlowLiteモデルに変換します。
@@ -30,11 +30,11 @@ EdgeTPU用モデルの作り方はCoralサイトにある「Coral：Docs & Tools
 </center>
 
 
-###（２）Representative Datasetの準備
+### （２）Representative Datasetの準備
 
 前述の「B. トレーニング後の量子化」において、「ただし、この変換プロセスでは代表的なデータセットを用意する必要があります。」と書きました。ここでは、その「代表的なデータセット」＝「Representative Dataset」を準備します。
 
-####完全な整数量子化（Full integer quantizetion）
+#### 完全な整数量子化（Full integer quantizetion）
 
 「トレーニング後の量子化」において量子化の方法はいくつかあるのですが、EdgeTPUを使うには「完全な整数量子化（Full integer quantizetion）」一択です。Tensorflowサイトのガイドページにて「Full integer qunatizetaion [[4]](https://www.tensorflow.org/lite/performance/post_training_quantization#full_integer_quantization)」という項目がありますが（言語は「English」を選択してください。「日本語」では説明がかなり省かれます！）、ここでは「Representative Dataset」についても述べられています。
 
@@ -52,13 +52,13 @@ EdgeTPU用モデルの作り方はCoralサイトにある「Coral：Docs & Tools
 
 つまり、学習で使ったデータをまた使うということなので、「それじゃ、学習と同じじゃないか」という気もしますが、学習は数百万のデータが必要なのに対して、こちらはせいぜい数百というのが違いというところでしょうか。
 
-####Representative Dataset収集プログラム
+#### Representative Dataset収集プログラム
 
 ここで問題なのが、FaceNet by Hiroki Taniai [[1]](https://github.com/nyoki-mtl/keras-facenet)の学習で使われたデータセット「MS-Celeb-1M[[5]](https://www.microsoft.com/en-us/research/project/ms-celeb-1m-challenge-recognizing-one-million-celebrities-real-world/) 」の入手が現在では難しいということです。内容的にはインターネットで拾ってきたセレブ画像のようであることと、量子化のための校正処理が目的であることから、厳密に学習データと同じでなくても許されそうです。したがって、[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)で用いたセレブ画像データセット「celebrities pictures dataset[[6]](https://www.kaggle.com/mustafa21/celebrities-pictures-dataset)」を再び用いることにします。
 
 前述の文章からサンプル数は100～500程度ということなので300枚の画像を集めます。プログラムの内容は、前回の記事「３．テスト用サンプル画像を準備する」に載せられたプログラムに準じています。ここでは、データセットにあるすべてのJPEGファイルをランダムに読込み、顔検出に成功した顔画像を300枚集めています。
 
-```
+```python
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
@@ -153,11 +153,11 @@ Representative Datasetとして使うサンプル顔画像の例として、サ�
 
 
 
-###（３）Convert
+### （３）Convert
 
 図１における「➀Convert」処理について説明します。ここでは、Convert処理は既存のKerasモデルを量子化されたTensorFlowLiteモデルに変換する処理となります。この変換がうまくいくかどうかが鍵だったので、言わば本記事での山場となります。
 
-####環境設定
+#### 環境設定
 
 FaceNet by Hiroki Taniai [[1]](https://github.com/nyoki-mtl/keras-facenet)は３，４年前に作られたモデルなので、[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)同様、当時の環境に合わせた「再現環境」にてConvertプログラムを動かします。したがって、Tensorflowもバージョン1を使用します。
 また、➀Convertも➁CompileもEdgeTPUではなく、ホストマシン（PC：Ubuntu）で実行します。
@@ -174,11 +174,11 @@ FaceNet by Hiroki Taniai [[1]](https://github.com/nyoki-mtl/keras-facenet)は３
 
 </center>
 
-####Convertプログラムの作成
+#### Convertプログラムの作成
 
 Convertプログラムは「Tensorflow Core V1.15」のPython APIで記述されます。中でも「tf.lite.TFLiteConverter [[7]](https://www.tensorflow.org/versions/r1.15/api_docs/python/tf/lite/TFLiteConverter)」がその中心となります。
 
-```
+```python
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import cv2
@@ -233,11 +233,11 @@ if __name__ == '__main__':
 
 > * 37～38行目：この設定が無いと、モデルの入出力がfloat32になってしまうようなので、モデルの入出力が整数であることを指定します。「tf.int8」か「tf.uint8」が選べるようですが、Tensorflow1.15の場合は「tf.uint8」しか選べないようです（Coralサイト：Docs&Tools：Appendix：Frequently asked questions:"How do I create a TensorFlow Lite model for the Edge TPU?" [[8]](https://coral.ai/docs/edgetpu/faq/)に記述あり）。また、古い推論エンジンを使うと「tf.int8」をサポートしていないので、やはり「tf.uint8」が無難です。
 
-####Convertプログラムの実行
+#### Convertプログラムの実行
 
 「再現環境」にて勇躍、Convertプログラムを実行したのですが、あれあれ？エラーが・・・
 
-```
+```shell
 $ python3 convert.py
 Traceback (most recent call last):
   File "convert.py", line 35, in <module>
@@ -250,7 +250,7 @@ AttributeError: 'str' object has no attribute 'decode'
 
 ネットでいろいろ調べたところ、Pythonモジュール「h5py」のバージョンが上がったために悪さをしているようです[[9]](https://qiita.com/Hiroki-Fujimoto/items/b078bfb680fb710c38c1)。そこで、h5pyを古いバージョン(2.10.0)に入れ替えて、その後念のため、tensorflow1.15も入れ替えます：
 
-```
+```shell
 $ pip3 install --upgrade pip
 $ pip3 uninstall h5py
 $ pip3 uninstall tensorflow
@@ -272,12 +272,12 @@ Pythonモジュール修正後、再びConvertプログラムを実行したと�
 
 </center>
 
-###（４）Compile
+### （４）Compile
 
 EdgeTPUは、畳み込みニューラルネットワーク（CNN）などのフィードフォワード・ニューラルネットワーク（Feedforward Neural Network）の計算処理を実行できます。完全に8ビット量子化され、EdgeTPU用に特別にコンパイルされたTensorFlowLiteモデルのみをサポートします。
 EdgeTPU Compilerは、量子化された普通のTensorFlowLiteモデルをEdgeTPUと互換性(compatibility)のあるTensorFlowLiteモデルへ変換するコマンドラインツールです。
 
-####EdgeTPUハードウェアの動作について
+#### EdgeTPUハードウェアの動作について
 
 「EdgeTPUと互換」なモデルというのは、モデルに含まれる様々なネットワーク計算処理がEdgeTPUの強力な専用ハードウェアで処理されるように表現されたモデルということです。「様々なネットワーク計算処理」は、EdgeTPUでは「Operation/Operator」と呼ばれています。例えば「Conv2d」なら「空間フィルタ：２次元畳み込み層演算」、「MaxPool2d」なら「最大値抽出：２次元最大プーリング層演算」という塩梅でいろいろあります。EdgeTPUで実行可能なOperator一覧が「Coral：Docs&Tools：Creating a model：TensorFlow models orverview：Model requirements：Supported operations [[10]](https://coral.ai/docs/edgetpu/models-intro/#supported-operations)」にあります。
 
@@ -285,13 +285,13 @@ EdgeTPU Compilerは、量子化された普通のTensorFlowLiteモデルをEdgeT
 
 以上を模式的に説明したのが図３です。EdgeTPUハードウェア「Coral Dev Board」はSoM(System on Module)とEdgeTPUコプロセッサで構成されます。推論処理時の動作モードは、ざっくり以下の３種類となります：
 
-* #####(1) On-Chip Memory<br>
+* ##### (1) On-Chip Memory<br>
 Operationは「TensorCore」で実行されます。パラメータデータもキャッシュされている状態であれば、すべてチップ内での演算なので非常に高速に処理されます。
 
-* #####(2) Off-Chip Memory<br>
+* ##### (2) Off-Chip Memory<br>
 Operationは「TensorCore」で実行されますが、パラメータデータはキャッシュされていない状態です。この場合、キャッシュの内容はクリアされ、EdgeTPUコプロセッサの外にあるメモリからキャッシュへパラメータデータをロードします。その分、遅延が発生します。
 
-* #####(3) Unsupported Operation<br>
+* ##### (3) Unsupported Operation<br>
 EdgeTPU Compilerがコンパイル時にEdgeTPUで実行できないOperationを発見した場合、その処理をSoMのCPUで実行するようにモデルに設定しておきます。CPUでの処理は非常に遅い（一説には１桁遅くなる）ので、なるべくこの状態を避けなければなりません。
 
 <center>
@@ -301,7 +301,7 @@ EdgeTPU Compilerがコンパイル時にEdgeTPUで実行できないOperationを
 
 EdgeTPUを最速で動かすには、カスタマイズされていない一般的なOperationのみを用い、モデルのサイズを8MB以下に抑えてすべてのパラメータデータをキャッシュに載せるような工夫が必要となります。
 
-####EdgeTPU Compilerのシステム要件
+#### EdgeTPU Compilerのシステム要件
 
 EdgeTPU Compiler[[11]](https://coral.ai/docs/edgetpu/compiler/)は、TensorFlowLiteモデル（.tfliteファイル）をEdgeTPUと互換性のあるファイルにコンパイルするコマンドラインツールです。このコマンドはEdgeTPU上ではなく、ホストマシン（PC）で実行します。システム要件は以下の通りです：
 
@@ -310,16 +310,16 @@ EdgeTPU Compiler[[11]](https://coral.ai/docs/edgetpu/compiler/)は、TensorFlowL
 
 また、Compiler（PCでのモデルコンパイラ）とRuntime（EdgeTPUでの推論実行ライブラリ）のバージョンを合わせないとエラーが出るそうなので[[12]](https://coral.ai/docs/edgetpu/compiler/#compiler-and-runtime-versions)、各々のバージョンを調べます。
 
-#####Compilerのバージョンチェック@PC
-```
+##### Compilerのバージョンチェック@PC
+```shell
 $ edgetpu_compiler --version
 Edge TPU Compiler version 15.0.340273435
 $
 ```
 
-#####Runtimeのバージョンチェック@EdgeTPU
+##### Runtimeのバージョンチェック@EdgeTPU
 EdgeTPUにログインし、Pythonコマンドラインでチェックします：
-```
+```shell
 $ python3
 >>> import edgetpu.basic.edgetpu_utils
 >>> edgetpu.basic.edgetpu_utils.GetRuntimeVersion()
@@ -328,19 +328,19 @@ $ python3
 ```
 現状のCompilerのバージョンは「15」、Runtimeのバージョンは「12」で、推奨されているRuntimeのバージョンは「13」なので[[12]](https://coral.ai/docs/edgetpu/compiler/#compiler-and-runtime-versions)、現状のRuntimeは少し古いです。しかし、コンパイル時に「--min_runtime_version」オプションを指定すれば、古いRuntimeでも使うことができます。
 
-####EdgeTPU Compilerのインストール
-```
+#### EdgeTPU Compilerのインストール
+```shell
 $ curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 $ echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | sudo tee /etc/apt/sources.list.d/coral-edgetpu.list
 $ sudo apt -y update
 $ sudo apt -y install edgetpu-compiler
 ```
 
-####EdgeTPU Compilerの実行
+#### EdgeTPU Compilerの実行
 
 TensorFlowLiteモデル「facenet_keras.tflite」を引数として、「edgetpu_compiler」コマンドを実行します。「--min_runtime_version」オプションでRuntimeのバージョンを指定します。「--show_operations」オプションはログに出力される内容も標準出力に表示します。以下は実行結果の表示です：
 
-```
+```shell
 $ edgetpu_compiler --min_runtime_version 12 --show_operations facenet_keras.tflite
 Edge TPU Compiler version 15.0.340273435
 
@@ -388,7 +388,7 @@ $
 実行結果表示を眺めてみると、OperaterのStatusはすべて「Mapped to Edge TPU」となっており、CPUで実行されるOperationはひとつも無く、すべてTPUで実行されます。一方、On-Chip Memoryが7MB、Off-Chip Memoryが15MBで、1/3くらいのパラメータデータがキャッシュ上で、残りは外のメモリからのロードが必要となりそうです。よって、最高速ではないが、そこそこ高速な処理速度は期待できそうです。
 
 
-###（５）モデルの可視化
+### （５）モデルの可視化
 
 ここまでは、TensorFlowLiteモデルをほとんどブラックボックスとして扱ってきましたが、モデルのネットワークの内容を可視化できるツールがいくつかあります。その中でも、インストール不要でブラウザからすぐアクセスできる「Netron[[13]](https://lutzroeder.github.io/netron/)」を使って可視化してみました。このURLのサイトからモデルファイル（「*.tflite」以外にもいろいろ）をアップロードするだけで、即座にネットワーク図が表示されます。
 
@@ -421,11 +421,11 @@ $
 >[13] [Netron](https://lutzroeder.github.io/netron/)
 
 
-##３．顔エンコーディング（Step4）
+## ３．顔エンコーディング（Step4）
 
 PC上で作成されたEdgeTPU対応TensorFlowLiteモデルファイルをEdgeTPUにコピーし、ここからはEdgeTPUでの作業となります。
 
-###（１）モデル入力テンソルの量子化について
+### （１）モデル入力テンソルの量子化について
 
 TensorFlowLiteモデル作成時に、モデルの入力は「uint8」でなければならないことは分かっていたのですが、入力画像は正/負の実数であるため、これをどのように量子化するかがよくわかりませんでした（TensorFlowLiteドキュメントではどうもよくわからない）。たまたま、これを詳しく解説した文献[[14]](https://heartbeat.fritz.ai/8-bit-quantization-and-tensorflow-lite-speeding-up-mobile-inference-with-low-precision-a882dfcafbbd)があったので、これを基に量子化してみました。
 
@@ -437,7 +437,7 @@ TensorFlowLiteモデル作成時に、モデルの入力は「uint8」でなけ�
 </center>
 
 
-###（２）顔エンコーディングプログラム
+### （２）顔エンコーディングプログラム
 
 プログラムの概要は、EdgeTPU対応TensorFlowLiteモデルをロードして、入力顔画像テンソルを標準化（Standardization）した後、量子化を施し、engine.run_inference()にその画像テンソルを入力して埋め込みベクトルを得るという流れです。
 
@@ -445,7 +445,7 @@ TensorFlowLiteモデル作成時に、モデルの入力は「uint8」でなけ�
 
 また、実行環境はPythonのバージョンが「3.7.3」です。Runtime：「edgetpu.basic.basic_engine」はインストール済みで、TensorFlowは必要ないのでインストールしていません。Python APIとして「Edge TPU Python API[[15]](https://coral.ai/docs/reference/edgetpu.basic.basic_engine/)」を使っています。今となっては非推奨なのですが、なにぶん古いKerasモデルを基にしているので今回は古い環境に付き合います。
 
-```
+```python
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import cv2
@@ -545,7 +545,7 @@ if __name__ == '__main__':
 >[14] [8-Bit Quantization and TensorFlow Lite: Speeding up mobile inference with low precision](https://heartbeat.fritz.ai/8-bit-quantization-and-tensorflow-lite-speeding-up-mobile-inference-with-low-precision-a882dfcafbbd)  
 >[15] [Coral：Docs&Tools：API Reference：Edge TPU Python API：edgetpu.basic.basic_engine](https://coral.ai/docs/reference/edgetpu.basic.basic_engine/)
 
-##４．埋め込みベクトル可視化する
+## ４．埋め込みベクトル可視化する
 
 [前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)同様に、埋め込みベクトルが５個ずつ３つのグループに分かれるかどうかを視覚的に確認します。手法も可視化プログラムも前回の記事とまったく同じです。ただし、今回は正規化（ベクトルの長さを１にする）の影響を取り除き、「生」の埋め込みベクトルで比較してみました。
 
@@ -556,7 +556,7 @@ if __name__ == '__main__':
 >図６：埋め込みベクトルの分布比較（左：EdgeTPU対応TensorFlowLiteモデル、右：Kerasモデル）
 </center>
 
-##５．続きは？
+## ５．続きは？
 
 やっとFaceNetをEdgeTPUに実装するところまで来ました。EdgeTPU上でもFaceNetモデルが正しく動作したので一安心です。これで「顔エンコーディング（Step4）」まで進んだので次回は「顔分類（Step5）」実装の予定です。ここまでサンプル画像としてセレブ画像を用いてきましたが、次回以降はカメラで撮った我々自身の顔画像を使っていろいろ試してみたいと思います。
 
