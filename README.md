@@ -67,8 +67,8 @@ import glob
 import random
 
 def face_detect(image, cascade):
-    framew = image.shape[0]
-    frameh = image.shape[1]
+    frameh = image.shape[0]
+    framew = image.shape[1]
     print("Frame Width: %d, Frame Height: %d" %(framew, frameh))
 
     # 顔検出チェック
