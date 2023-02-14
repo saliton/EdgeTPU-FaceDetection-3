@@ -2,7 +2,7 @@
 
 ## １．今回やること
 
-[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)では、PCにてFaceNet[[1]](https://github.com/nyoki-mtl/keras-facenet)を実装して、顔エンコーディング（Face Encoding）の結果、正しい埋め込みベクトルが出力されることを確認しました。今回は、まったく同じことをEdgeTPU上で実施しますが、PCで使ったFaceNetのKerasモデルをEdgeTPU用のTensorFlowLiteモデルに変換するところが中心となります。
+[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://qiita.com/saliton/items/2cc8ae3c82941c9fe4d6)では、PCにてFaceNet[[1]](https://github.com/nyoki-mtl/keras-facenet)を実装して、顔エンコーディング（Face Encoding）の結果、正しい埋め込みベクトルが出力されることを確認しました。今回は、まったく同じことをEdgeTPU上で実施しますが、PCで使ったFaceNetのKerasモデルをEdgeTPU用のTensorFlowLiteモデルに変換するところが中心となります。
 
 >参考文献：  
 >[1] [FaceNet by Hiroki Taniai](https://github.com/nyoki-mtl/keras-facenet)  
