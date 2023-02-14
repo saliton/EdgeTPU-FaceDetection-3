@@ -54,7 +54,7 @@ EdgeTPU用モデルの作り方はCoralサイトにある「Coral：Docs & Tools
 
 #### Representative Dataset収集プログラム
 
-ここで問題なのが、FaceNet by Hiroki Taniai [[1]](https://github.com/nyoki-mtl/keras-facenet)の学習で使われたデータセット「MS-Celeb-1M[[5]](https://www.microsoft.com/en-us/research/project/ms-celeb-1m-challenge-recognizing-one-million-celebrities-real-world/) 」の入手が現在では難しいということです。内容的にはインターネットで拾ってきたセレブ画像のようであることと、量子化のための校正処理が目的であることから、厳密に学習データと同じでなくても許されそうです。したがって、[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)で用いたセレブ画像データセット「celebrities pictures dataset[[6]](https://www.kaggle.com/mustafa21/celebrities-pictures-dataset)」を再び用いることにします。
+ここで問題なのが、FaceNet by Hiroki Taniai [[1]](https://github.com/nyoki-mtl/keras-facenet)の学習で使われたデータセット「MS-Celeb-1M[[5]](https://www.microsoft.com/en-us/research/project/ms-celeb-1m-challenge-recognizing-one-million-celebrities-real-world/) 」の入手が現在では難しいということです。内容的にはインターネットで拾ってきたセレブ画像のようであることと、量子化のための校正処理が目的であることから、厳密に学習データと同じでなくても許されそうです。したがって、[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://qiita.com/saliton/items/2cc8ae3c82941c9fe4d6)で用いたセレブ画像データセット「celebrities pictures dataset[[6]](https://www.kaggle.com/mustafa21/celebrities-pictures-dataset)」を再び用いることにします。
 
 前述の文章からサンプル数は100～500程度ということなので300枚の画像を集めます。プログラムの内容は、前回の記事「３．テスト用サンプル画像を準備する」に載せられたプログラムに準じています。ここでは、データセットにあるすべてのJPEGファイルをランダムに読込み、顔検出に成功した顔画像を300枚集めています。
 
@@ -159,7 +159,7 @@ Representative Datasetとして使うサンプル顔画像の例として、サ�
 
 #### 環境設定
 
-FaceNet by Hiroki Taniai [[1]](https://github.com/nyoki-mtl/keras-facenet)は３，４年前に作られたモデルなので、[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)同様、当時の環境に合わせた「再現環境」にてConvertプログラムを動かします。したがって、Tensorflowもバージョン1を使用します。
+FaceNet by Hiroki Taniai [[1]](https://github.com/nyoki-mtl/keras-facenet)は３，４年前に作られたモデルなので、[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://qiita.com/saliton/items/2cc8ae3c82941c9fe4d6)同様、当時の環境に合わせた「再現環境」にてConvertプログラムを動かします。したがって、Tensorflowもバージョン1を使用します。
 また、➀Convertも➁CompileもEdgeTPUではなく、ホストマシン（PC：Ubuntu）で実行します。
 
 <center>
@@ -441,7 +441,7 @@ TensorFlowLiteモデル作成時に、モデルの入力は「uint8」でなけ�
 
 プログラムの概要は、EdgeTPU対応TensorFlowLiteモデルをロードして、入力顔画像テンソルを標準化（Standardization）した後、量子化を施し、engine.run_inference()にその画像テンソルを入力して埋め込みベクトルを得るという流れです。
 
-以下は顔エンコーディングプログラムです。基本的には、[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)の顔エンコーディングプログラムに準じています。
+以下は顔エンコーディングプログラムです。基本的には、[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://qiita.com/saliton/items/2cc8ae3c82941c9fe4d6)の顔エンコーディングプログラムに準じています。
 
 また、実行環境はPythonのバージョンが「3.7.3」です。Runtime：「edgetpu.basic.basic_engine」はインストール済みで、TensorFlowは必要ないのでインストールしていません。Python APIとして「Edge TPU Python API[[15]](https://coral.ai/docs/reference/edgetpu.basic.basic_engine/)」を使っています。今となっては非推奨なのですが、なにぶん古いKerasモデルを基にしているので今回は古い環境に付き合います。
 
@@ -547,7 +547,7 @@ if __name__ == '__main__':
 
 ## ４．埋め込みベクトル可視化する
 
-[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://www.soliton-cyber.com/blog/edgetpu-facedetection-2)同様に、埋め込みベクトルが５個ずつ３つのグループに分かれるかどうかを視覚的に確認します。手法も可視化プログラムも前回の記事とまったく同じです。ただし、今回は正規化（ベクトルの長さを１にする）の影響を取り除き、「生」の埋め込みベクトルで比較してみました。
+[前回の記事（Edge TPUで顔認証してみる～実装編その２）](https://qiita.com/saliton/items/2cc8ae3c82941c9fe4d6)同様に、埋め込みベクトルが５個ずつ３つのグループに分かれるかどうかを視覚的に確認します。手法も可視化プログラムも前回の記事とまったく同じです。ただし、今回は正規化（ベクトルの長さを１にする）の影響を取り除き、「生」の埋め込みベクトルで比較してみました。
 
 比較結果が図６です。左図が今回EdgeTPUで得たEdgeTPU対応TensorFlowLiteモデルの埋め込みベクトル、右図が前回PCで得たKerasモデルの埋め込みベクトル（ただし正規化していない）です。どうでしょうか？両者はだいたい似通った傾向と言ってよいのではないでしょうか。量子化されているとは言え、EdgeTPU対応TensorFlowLiteモデルも顔の識別には十分使えそうです。
 
